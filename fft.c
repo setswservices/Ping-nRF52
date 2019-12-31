@@ -7,6 +7,6 @@
 
 #include "arm_math.h"
 
-extern float32_t fFFTin[FFT_SAMPLE_SIZE];
+extern float fFFTin[MONO_FFT_SAMPLE_SIZE];
 extern uint16_t nNumFFTinputs = 0;
 extern void sana_fft(void);

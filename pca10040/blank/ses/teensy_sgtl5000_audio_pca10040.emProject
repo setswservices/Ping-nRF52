@@ -73,7 +73,9 @@
     <folder Name="Application">
       <file file_name="../config/sdk_config.h" />
       <file file_name="../../../drv_sgtl5000.c" />
-      <file file_name="../../../car_sample.c" />
+      <file file_name="../../../car_sample.c">
+        <configuration Name="Debug" build_exclude_from_build="Yes" />
+      </file>
       <file file_name="../../../main.c" />
       <file file_name="../../../sana-fft.c" />
       <file file_name="../../../timer.c" />
@@ -102,6 +104,7 @@
       <file file_name="../../../arm_rfft_fast_init_f32.c" />
       <file file_name="../../../arm_sin_f32.c" />
     </folder>
+    <configuration Name="Debug" linker_printf_fp_enabled="Float" />
   </project>
   <configuration
     Name="Release"

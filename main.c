@@ -68,16 +68,22 @@
 #include "drv_sgtl5000.h"
 
 
-static uint32_t  m_i2s_tx_buffer[I2S_BUFFER_SIZE_WORDS];
-static uint32_t  m_i2s_rx_buffer[I2S_BUFFER_SIZE_WORDS];
 
-int16_t Rx_Buffer[FFT_SAMPLE_SIZE];
-    
-/* Include car sample to demonstrate that sample can be played from application as well */
-#define SAMPLE_LEN                  67200
-extern const uint8_t                car_sample[SAMPLE_LEN];
-static uint8_t * p_sample           = (uint8_t *)car_sample;
+// Each I2S access/interrupt provides AUDIO_FRAME_NUM_SAMPLES of 32-bit stereo pairs
+// And, m_i2s_rx_buffer holds two input buffers for double buffering, so twice the size or I2S_BUFFER_SIZE_WORDS long, where "words" are 32-bit pairs
+// So, each vector is I2S_BUFFER_SIZE_WORDS * sizeof(uint32_t) bytes long
+// And each buffer contains AUDIO_FRAME_NUM_SAMPLES 32-bit pairs
+
+
+uint32_t  m_i2s_tx_buffer[I2S_BUFFER_SIZE_WORDS];
+uint32_t  m_i2s_rx_buffer[I2S_BUFFER_SIZE_WORDS];
+
+int16_t Rx_Buffer[FFT_SAMPLE_SIZE * 2];	// twice the number of stereo pairs
+
 static uint32_t sample_idx          = 0;
+
+#define SAMPLE_LEN                  67200
+static uint8_t * p_sample ;
 
 
 static bool i2s_sgtl5000_driver_evt_handler(drv_sgtl5000_evt_t * p_evt)
@@ -183,16 +189,19 @@ int main(void)
     drv_sgtl5000_init_t sgtl_drv_params;
     sgtl_drv_params.i2s_tx_buffer           = (void*)m_i2s_tx_buffer;
     sgtl_drv_params.i2s_rx_buffer           = (void*)m_i2s_rx_buffer;
-    sgtl_drv_params.i2s_buffer_size_words   = I2S_BUFFER_SIZE_WORDS/2;
+    sgtl_drv_params.i2s_buffer_size_words   =  I2S_BUFFER_SIZE_WORDS; ; //I2S_BUFFER_SIZE_WORDS/2;
     sgtl_drv_params.i2s_evt_handler         = i2s_sgtl5000_driver_evt_handler;
     sgtl_drv_params.fs                      = DRV_SGTL5000_FS_31250HZ;
-    
+
+#ifdef DOING_TX
     m_i2s_tx_buffer[0] = 167;
     m_i2s_tx_buffer[I2S_BUFFER_SIZE_WORDS/2] = 167;
-    NRF_LOG_RAW_INFO("size of  m_i2s_tx_buffer %d, %d Words\r\n", sizeof(m_i2s_tx_buffer) / sizeof(uint32_t), I2S_BUFFER_SIZE_WORDS);
-    NRF_LOG_RAW_INFO("i2s_initial_tx_buffer addr1: %d, addr2: %d\r\n", m_i2s_tx_buffer, m_i2s_tx_buffer + I2S_BUFFER_SIZE_WORDS/2);
+#endif
+
+    NRF_LOG_RAW_INFO("AUDIO_FRAME_NUM_SAMPLES = %d\r\n", AUDIO_FRAME_NUM_SAMPLES);
+    NRF_LOG_RAW_INFO("size of  m_i2s_rx_buffer %d =  %d 32-bit samples\r\n", sizeof(m_i2s_rx_buffer) / sizeof(uint32_t), I2S_BUFFER_SIZE_WORDS);
     NRF_LOG_RAW_INFO("i2s_initial_Rx_buffer addr1: %d, addr2: %d\r\n", m_i2s_rx_buffer, m_i2s_rx_buffer + I2S_BUFFER_SIZE_WORDS/2);
-    
+   
     drv_sgtl5000_init(&sgtl_drv_params);
     drv_sgtl5000_stop();
     NRF_LOG_RAW_INFO("Audio initialization done.\r\n");
@@ -221,20 +230,27 @@ int main(void)
 
 	if(!bBeenHere && ElapsedTimeInMilliseconds() > 1000)
 	{
-		// Capture sample
-		memcpy(Rx_Buffer, Current_RX_Buffer, FFT_SAMPLE_SIZE * sizeof(int16_t));
+		bCaptureRx = true;
+
+		// Wait for capture
+		while(bCaptureRx)   nrf_delay_ms(1);
+
+		NRF_LOG_RAW_INFO("Copied RX in %d msec\r\n", RxTimeDelta);
+
 			
-	    	NRF_LOG_RAW_INFO("[%d] Num_Mic_Samples = %d, FFT Sample Size = %d\n\r",ElapsedTimeInMilliseconds(), Num_Mic_Samples, FFT_SAMPLE_SIZE);
+	    	NRF_LOG_RAW_INFO("[%d] Num_Mic_Samples = %d, Mono FFT Sample Size = %d\n\r",ElapsedTimeInMilliseconds(), Num_Mic_Samples, FFT_SAMPLE_SIZE);
 		fBinSize = ( 31250.0 /2 ) / (FFT_SAMPLE_SIZE /2 );
 
 		sprintf(cOutbuf, "fBinSize = %f\n\r", fBinSize); 	NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
 
+
+		// Convert stereo 16-bit samples to mono float samples, half as many
 		nJdx = 0;
-		for(nIdx=0; nIdx < FFT_SAMPLE_SIZE; nIdx++)
+		for(nIdx=0; nIdx < FFT_SAMPLE_SIZE * 2; nIdx += 2)
 		{
 			fFFTin[nJdx++] = (float)  Rx_Buffer[nIdx];
 
-		NRF_LOG_RAW_INFO("%8d\r\n",Rx_Buffer[nIdx]);
+			NRF_LOG_RAW_INFO("%8d\r\n",Rx_Buffer[nIdx]);
 	
 			fFFTin[nJdx++] = 0.0;
 		}

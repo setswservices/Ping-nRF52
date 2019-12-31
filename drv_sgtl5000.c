@@ -47,6 +47,11 @@
 #include "nrf_drv_twi.h"
 #include "string.h"
 
+#define ARM_MATH_CM4
+#include "arm_math.h"
+
+#include "ping_config.h"
+
 /**
  * @brief   Teensy SGTL5000 Audio board driver for nRF52 series
  */
@@ -67,11 +72,7 @@ static drv_sgtl5000_handler_t     m_i2s_evt_handler;
 static nrf_drv_i2s_config_t       m_i2s_config;
 /* Define volume variable used to set volume of device - This is a untested feature! */
 static float                      m_volume;
-/* Define audio sample length (has to match included audio sample file!), and include the sample itself. */
-#define SAMPLE_LEN                  67200
-extern const uint8_t                car_sample[SAMPLE_LEN];
-static uint8_t * p_smpl             = (uint8_t *)car_sample;
-static uint32_t smpl_idx            = 0;
+
 
 /* Structure holding i2s buffers used for transmissions */
 static struct
@@ -180,6 +181,9 @@ uint32_t Num_Mic_Samples = 0;
 
 int16_t *Current_RX_Buffer;
 
+bool bCaptureRx = false;
+uint32_t RxTimeBeg, RxTimeDelta;
+
 /* I2S event handler. Based on the module state, will play sample, playback microphone data, or forward events to the application */
 static void i2s_data_handler(nrf_drv_i2s_buffers_t const * p_released,
                          uint32_t                      status)
@@ -198,10 +202,13 @@ static void i2s_data_handler(nrf_drv_i2s_buffers_t const * p_released,
         };
         APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(&next_buffers));
         
-        i2s_data_handler_old(NULL, &m_external_i2s_buffer.tx_buffer[m_external_i2s_buffer.buffer_size_words/2], m_external_i2s_buffer.buffer_size_words/2);
+        //  i2s_data_handler_old(NULL, &m_external_i2s_buffer.tx_buffer[m_external_i2s_buffer.buffer_size_words/2], m_external_i2s_buffer.buffer_size_words/2);
     }
     else if (p_released->p_rx_buffer == NULL)
     {
+
+	NRF_LOG_RAW_INFO("RX is NULL\r\n");
+	
         // If RX buffer is NULL, no data has been received, and we need to provide the next buffers. Nothing else done (to keep implementation a little simpler).
         nrf_drv_i2s_buffers_t const next_buffers = {
             .p_rx_buffer = &m_external_i2s_buffer.rx_buffer[m_external_i2s_buffer.buffer_size_words/2],
@@ -216,75 +223,20 @@ static void i2s_data_handler(nrf_drv_i2s_buffers_t const * p_released,
 
 	Num_Mic_Samples++;
 		
-        // This is the normal standard I2S running state. We check module states here and not before to keep implementation a little simpler.
-        if (m_state == SGTL5000_STATE_RUNNING)
+        if (m_state == SGTL5000_STATE_RUNNING_LOOPBACK)
         {
-            // If we are forwarding events to the application, we let the "old" event handler take care of that
-            APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(p_released));
-            
-            i2s_data_handler_old(p_released->p_rx_buffer, (uint32_t *)p_released->p_tx_buffer, m_external_i2s_buffer.buffer_size_words/2);
-        }
-        else if (m_state == SGTL5000_STATE_RUNNING_LOOPBACK)
-        {
- #ifdef NO_FWD
-            // Forward MIC to LINEOUT
-            nrf_drv_i2s_buffers_t const next_buffers = {
-                .p_rx_buffer = (uint32_t *)p_released->p_tx_buffer,
-                .p_tx_buffer = (uint32_t *)p_released->p_rx_buffer,
-            };
-            APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(&next_buffers));
-#endif
+		if(bCaptureRx)
+		{
+			RxTimeBeg = ElapsedTimeInMilliseconds();
+			Current_RX_Buffer = (int16_t *) p_released->p_rx_buffer ;
 
+			// Capture sample
+			memcpy(Rx_Buffer, Current_RX_Buffer, FFT_SAMPLE_SIZE * sizeof(uint32_t));
+			bCaptureRx = false;
 
-		Current_RX_Buffer = (int16_t *) p_released->p_rx_buffer;
+			RxTimeDelta = ElapsedTimeInMilliseconds() -RxTimeBeg ;
+		}
 
-        }
-        else if (m_state == SGTL5000_STATE_RUNNING_SAMPLE)
-        {
-            /* Play sample! 16kHz sample played on 32kHz frequency! If frequency is changed, this approach needs to change. */
-            APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(p_released));
-            
-            /* Make sure settings have not changed - as this sample playback highly depends on the I2S settings */
-            APP_ERROR_CHECK_BOOL(m_i2s_config.mck_setup == NRF_I2S_MCK_32MDIV8);     // If these change, please change this function as well
-            APP_ERROR_CHECK_BOOL(m_i2s_config.ratio == NRF_I2S_RATIO_128X);          // If these change, please change this function as well
-            // Also depends on alignement, format, and channels!
-            
-            /* Extract buffer pointer for TX I2S buffer - uint16_t to match up with sample */
-            uint16_t * p_buffer  = (uint16_t *) p_released->p_tx_buffer;
-            /* Since the I2S buffer is double buffered, we are only looking at the requested half. And since channels is LEFT, we only look at half of this as well. */
-            uint32_t i2s_buffer_size_words = m_external_i2s_buffer.buffer_size_words/2;
-            /* For this requested half, we only need half the amount of sample values because the sample is 16kHz and we are running 32kHz. See NRF_I2S_MCK_32MDIV8 and RATIO. */
-            int16_t pcm_stream[i2s_buffer_size_words];
-            
-            /* Clear pcm buffer */
-            memset(pcm_stream, 0, sizeof(pcm_stream));
-
-            /* Check if playing the next part of the sample will exceed the sample size, if not, copy over part of sample to be played */
-            if (smpl_idx < SAMPLE_LEN)
-            {
-                /* Copy i2s_buffer_size_words * 2 number of bytes into pcm_stream (or remaining part of sample. This should fill up half the actual I2S transmit buffer. */
-                /* We only want half becuase the sample is a 16kHz sample, and we are running the SGTL500 at 32kHz; see DRV_SGTL5000_FS_31250HZ */
-                uint32_t bytes_to_copy = ((smpl_idx + sizeof(pcm_stream)) < SAMPLE_LEN) ? sizeof(pcm_stream) : SAMPLE_LEN - smpl_idx;
-                memcpy(pcm_stream, &p_smpl[smpl_idx], bytes_to_copy);
-                smpl_idx += bytes_to_copy;
-            }
-            else 
-            {
-                /* End of buffer reached. */
-                smpl_idx = 0;
-                DRV_SGTL5000_EGU_INSTANCE->TASKS_TRIGGER[SGTL5000_EGU_TASK_STREAMING_STOP] = 1;
-            }
-            
-            /* Upsample the decompressed audio */
-            /* i < i2s_buffer_size_words * 2 because we have a uint16_t buffer pointer */
-            for (int i = 0, pcm_stream_idx = 0; i < i2s_buffer_size_words * 2; i += 2)
-            {
-                for (int j = i; j < (i + 2); ++j)
-                {
-                    p_buffer[j] = pcm_stream[pcm_stream_idx];
-                }
-                ++pcm_stream_idx;
-            }
         }
         else 
         {
@@ -754,6 +706,26 @@ uint32_t drv_sgtl5000_start(void)
 }
 
 
+
+/* Starts the I2S peripheral, forwards MIC input to Speaker. No events are forwarded to the application. */
+uint32_t drv_sgtl5000_start_mic_listen(void)
+{
+    if (m_state == SGTL5000_STATE_IDLE)
+    {
+        m_state = SGTL5000_STATE_RUNNING;
+        nrf_drv_i2s_buffers_t const initial_buffers = {
+            .p_tx_buffer = m_external_i2s_buffer.tx_buffer,
+            .p_rx_buffer = m_external_i2s_buffer.rx_buffer,
+        };
+        (void)nrf_drv_i2s_start(&initial_buffers, (m_external_i2s_buffer.buffer_size_words/2), 0);
+        
+        return NRF_SUCCESS;
+    }
+    
+    return NRF_ERROR_INVALID_STATE;
+}
+
+
 /* Starts the I2S peripheral, forwards MIC input to Speaker. No events are forwarded to the application. */
 uint32_t drv_sgtl5000_start_mic_loopback(void)
 {
@@ -771,26 +743,6 @@ uint32_t drv_sgtl5000_start_mic_loopback(void)
     
     return NRF_ERROR_INVALID_STATE;
 }
-
-
-/* Starts the I2S peripheral, plays an audio sample, then stops the peripheral. No events are forwarded to the application. */
-uint32_t drv_sgtl5000_start_sample_playback(void)
-{
-    if (m_state == SGTL5000_STATE_IDLE)
-    {
-        m_state = SGTL5000_STATE_RUNNING_SAMPLE;
-        nrf_drv_i2s_buffers_t const initial_buffers = {
-            .p_tx_buffer = m_external_i2s_buffer.tx_buffer,
-            .p_rx_buffer = m_external_i2s_buffer.rx_buffer,
-        };
-        (void)nrf_drv_i2s_start(&initial_buffers, (m_external_i2s_buffer.buffer_size_words/2), 0);
-        
-        return NRF_SUCCESS;
-    }
-    
-    return NRF_ERROR_INVALID_STATE;
-}
-
 
 /* Stops the I2S peripheral */
 uint32_t drv_sgtl5000_stop(void)

@@ -138,15 +138,14 @@ typedef struct
 /****************************************/
 /* SGTL5000 driver function definitions */
 /****************************************/
-uint32_t drv_sgtl5000_init(drv_sgtl5000_init_t * p_params);
-uint32_t drv_sgtl5000_start(void);
-uint32_t drv_sgtl5000_start_mic_loopback(void);
-uint32_t drv_sgtl5000_start_sample_playback(void);
-uint32_t drv_sgtl5000_stop(void);
-uint32_t drv_sgtl5000_volume_set(float volume_db);
-uint32_t drv_sgtl5000_volume_get(float * p_volume_db);
-
-
+extern uint32_t drv_sgtl5000_init(drv_sgtl5000_init_t * p_params);
+extern uint32_t drv_sgtl5000_start(void);
+extern uint32_t drv_sgtl5000_start_mic_loopback(void);
+extern uint32_t drv_sgtl5000_start_sample_playback(void);
+extern uint32_t drv_sgtl5000_stop(void);
+extern uint32_t drv_sgtl5000_volume_set(float volume_db);
+extern uint32_t drv_sgtl5000_volume_get(float * p_volume_db);
+extern uint32_t drv_sgtl5000_start_mic_listen(void);
 
 
 /* SGTL5000 Register definitions */
