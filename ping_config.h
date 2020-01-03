@@ -6,6 +6,9 @@
 
 #define 	NRF_SDH_BLE_GATT_MAX_MTU_SIZE	247
 
+#define	SEC_PARAM_MITM_1		1
+#define	SEC_PARAM_MITM_0		0
+
 // Number of stereo pairs per I2S access
 #define AUDIO_FRAME_NUM_SAMPLES                   			256
 

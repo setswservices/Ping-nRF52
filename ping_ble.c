@@ -16,6 +16,8 @@
 #include <stdlib.h> 
 #include "nrf_delay.h"
 #include "app_util_platform.h"
+#include <app_timer.h>
+#include <bsp.h>
 #include "app_error.h"
 #include "boards.h"
 
@@ -54,7 +56,9 @@
 #include <nrf_sdh_soc.h>
 #include <nrf_sdh_ble.h>
 
+#ifdef ENABLE_FLASH
 #include <fds.h>
+#endif // ENABLE_FLASH
 
 #include "timer.h"
 
@@ -373,7 +377,7 @@ void StopAdvertisingAndDisconnect(void)
 
 	// Stop advertising
 	
-	sd_ble_gap_adv_stop();
+	sd_ble_gap_adv_stop(&m_advertising);
 
 	nrf_delay_ms(100);
 
@@ -421,6 +425,7 @@ static void pm_evt_handler(pm_evt_t const *p_evt)
 
 	case PM_EVT_CONN_SEC_SUCCEEDED:
 	{
+ #ifdef ENABLE_SECURE_BLE
 		if (bSecureBLE)
 		{
 			pm_conn_sec_status_t conn_sec_status;
@@ -448,6 +453,8 @@ static void pm_evt_handler(pm_evt_t const *p_evt)
 			}
 		}
 		else
+   #endif // ENABLE_SECURE_BLE
+
 		{
 			NRF_LOG_RAW_INFO("Connection secured: role: %d, conn_handle: 0x%x, procedure: %d.",
 							 ble_conn_state_role(p_evt->conn_handle),
@@ -456,7 +463,9 @@ static void pm_evt_handler(pm_evt_t const *p_evt)
 		}
 	}
 	break;
-
+	
+//////////////////////////////////////////////////////////////////////////////////////////////
+ #ifdef ENABLE_SECURE_BLE
 	case PM_EVT_CONN_SEC_FAILED:
 	{
 		/* Often, when securing fails, it shouldn't be restarted, for security reasons.
@@ -485,7 +494,9 @@ static void pm_evt_handler(pm_evt_t const *p_evt)
 		}
 	}
 	break;
-
+ #endif // ENABLE_SECURE_BLE
+ //////////////////////////////////////////////////////////////////////////////////////////////
+ 
 	case PM_EVT_CONN_SEC_CONFIG_REQ:
 	{
 		// Reject pairing request from an already bonded peer.
@@ -494,6 +505,8 @@ static void pm_evt_handler(pm_evt_t const *p_evt)
 	}
 	break;
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_FLASH
 	case PM_EVT_STORAGE_FULL:
 	{
 		// Run garbage collection on the flash.
@@ -508,6 +521,8 @@ static void pm_evt_handler(pm_evt_t const *p_evt)
 		}
 	}
 	break;
+#endif //  ENABLE_FLASH
+//////////////////////////////////////////////////////////////////////////////////////////////
 
 	case PM_EVT_PEERS_DELETE_SUCCEEDED:
 	{
@@ -615,6 +630,7 @@ uint16_t SimpleWordCheckSum(uint16_t OldCheckSum, uint8_t *p_data, uint8_t Len)
 	return NewCheckSum;
 }
 
+#ifdef NOT_NEC
 //////////////////////////////////////////////////////////////////////////////
 //
 // The OldModeAnnouncement() function prints the old mode message  
@@ -646,6 +662,7 @@ void NewModeAnnouncement(uint16_t mode)
 	NRF_LOG_RAW_INFO("New Mode will be ");
 	PrintCurrentMaskMode(mode);
 }
+#endif // NOT_NEC
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -678,6 +695,9 @@ static void ble_ping_data_handler(ble_ping_t *p_ping, uint8_t *p_data, uint16_t 
 	}
 
 #endif // ENABLE_BLE_SERVICE_DEBUG
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_SEND_DATA
 
 	if (strncmp((char *)p_data, "SendData", Eight) == 0)
 	{
@@ -780,8 +800,11 @@ static void ble_ping_data_handler(ble_ping_t *p_ping, uint8_t *p_data, uint16_t 
 			//SetSessionState(SESSION_STARTED);
 		}
 	}
+#endif // ENABLE_SEND_DATA
+//////////////////////////////////////////////////////////////////////////////////////////////
 
-	
+//////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_SEND_LOG	
 	if (strncmp((char *)p_data, "SendLog", 7) == 0)	// Ignore parameters
 	{
 	
@@ -872,8 +895,11 @@ static void ble_ping_data_handler(ble_ping_t *p_ping, uint8_t *p_data, uint16_t 
 		bGotSCToken = true;
 
 	}
-	
+#endif // ENABLE_SEND_LOG	
+//////////////////////////////////////////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+#ifdef ENABLE_APP_CONTROL
 	if (bEnableAppControl)
 	{
 		//
@@ -901,10 +927,13 @@ static void ble_ping_data_handler(ble_ping_t *p_ping, uint8_t *p_data, uint16_t 
 		}
 	}
 
+#endif // ENABLE_APP_CONTROL
+//////////////////////////////////////////////////////////////////////////////////////////////
+
 	//
 	// Older Commands
 	//
-#if ENABLE_FLASH
+#ifdef ENABLE_FLASH
 	if (strncmp((char *)p_data, "EraseData", length) == 0)
 	{
 		NRF_LOG_RAW_INFO("** EraseData: Resetting Flash Offset to Zero ***\r\n");
@@ -919,114 +948,11 @@ static void ble_ping_data_handler(ble_ping_t *p_ping, uint8_t *p_data, uint16_t 
 		bEraseSessionLogFlash = true;
 	}
 		
-#endif
+#endif // ENABLE_FLASH
 
-	// Command from Sana Connect to permit sending HR/HRV data
-
-	else if (strncmp((char *)p_data, "SCToken", length) == 0)
+	if (strncmp((char *)p_data, "SendBattery", length) == 0)
 	{
-		NRF_LOG_RAW_INFO("***Got SCToken\r\n");
-		bGotSCToken = true;
-	}
-
-	// Commands from Sana Connect to change stored mode
-	// But doesn't happen until "StoreMODE" command is received
-
-	else if (strncmp((char *)p_data, "StoreMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Store Mode to Flash and Reboot\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		bStoreModeToFlash = true;
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	//
-	// Enable mode behavior change from flash or not
-	//
-	else if (strncmp((char *)p_data, "EnableMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Enable Stored Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode |= STORED_MODE_CHANGEABLE_MASK;
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	else if (strncmp((char *)p_data, "DisableMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Disable Stored Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode &= ~(STORED_MODE_CHANGEABLE_MASK);
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	//
-	// Enable standard or secure BLE
-	//
-	else if (strncmp((char *)p_data, "SetSECBLEMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Mask to Secure BLE Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode |= STORED_STDBLE_OR_SECUREBLE_MASK;
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	else if (strncmp((char *)p_data, "SetSTDBLEMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Mask to Standard BLE Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode &= ~(STORED_STDBLE_OR_SECUREBLE_MASK);
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	//
-	// Enable App or No-App Mode
-	//
-	else if (strncmp((char *)p_data, "SetAPPMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Mask to App Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode |= STORED_APP_OR_NOAPP_MASK;
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	else if (strncmp((char *)p_data, "SetNOAPPMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Mask to No App Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode &= ~(STORED_APP_OR_NOAPP_MASK);
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	//
-	// Enable Real or Sham Mode
-	//
-	else if (strncmp((char *)p_data, "SetREALMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Mask to Real Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode |= STORED_REAL_OR_SHAM_MASK;
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	else if (strncmp((char *)p_data, "SetSHAMMODE", length) == 0)
-	{
-		NRF_LOG_RAW_INFO("*** Setting: Mask to Sham Mode\r\n");
-		OldModeAnnouncement(StoredMaskMode);
-		StoredMaskMode &= ~(STORED_REAL_OR_SHAM_MASK);
-		NewModeAnnouncement(StoredMaskMode);
-	}
-
-	//
-	// Reset Volume and Light and Reboot
-	//
-
-	else if (strncmp((char *)p_data, "ResetVL", length) == 0)
-	{
-		ResetVolumeAndLight();
-	}
-	else if (strncmp((char *)p_data, "SendBattery", length) == 0)
-	{
-		SendBatteryData();
+		//SendBatteryData();
 	}
 	else if (strncmp((char *)p_data, "SendParameters", length) == 0)
 	{
@@ -1103,7 +1029,6 @@ static void on_conn_params_evt(ble_conn_params_evt_t *p_evt)
 	}
 }
 
-#if ENABLE_ADVERTISING
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1137,7 +1062,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
 		break;
 	}
 }
-#endif // ENABLE_ADVERTISING
+
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1167,7 +1092,8 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 		m_conn_handle = BLE_CONN_HANDLE_INVALID;
 		bSanaConnected = false;
 		connectedToBondedDevice = false;
-
+		
+ #ifdef ENABLE_SECURE_BLE
 		if (bSecureBLE)
 		{
 			/*check if the last connected peer had not used MITM, if so, delete its bond information*/
@@ -1179,7 +1105,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 				m_peer_to_be_deleted = PM_PEER_ID_INVALID;
 			}
 		}
-
+#endif //   ENABLE_SECURE_BLE
 		break;
 
 	case BLE_GAP_EVT_CONNECTED:
@@ -1190,6 +1116,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 		p_ble_evt->evt.gap_evt.params.connected.conn_params.min_conn_interval, 
 		p_ble_evt->evt.gap_evt.params.connected.conn_params.max_conn_interval);
 
+ #ifdef ENABLE_SECURE_BLE
 		if (bSecureBLE)
 		{
 			m_peer_to_be_deleted = PM_PEER_ID_INVALID;
@@ -1202,6 +1129,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 				Set_Secure_Timeout_Handler(sec_req_timeout_handler, SECURITY_REQUEST_DELAY);
 			}
 		}
+#endif //   ENABLE_SECURE_BLE
 
 		bSanaConnected = true;
 		
@@ -1248,6 +1176,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 		APP_ERROR_CHECK(err_code);
 		break;
 
+ #ifdef ENABLE_SECURE_BLE
 	case BLE_GAP_EVT_PASSKEY_DISPLAY:
 	{
 		if (bSecureBLE)
@@ -1262,6 +1191,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 		}
 	}
 	break; // BLE_GAP_EVT_PASSKEY_DISPLAY
+#endif //   ENABLE_SECURE_BLE
 
 	case BLE_EVT_USER_MEM_REQUEST:
 
@@ -1348,6 +1278,8 @@ static void ble_stack_init(void)
 //
 //////////////////////////////////////////////////////////////////////////////
 
+uint8_t BLE_dev_id[BLE_GAP_DEVNAME_MAX_LEN];  /** Device name */
+
 static void gap_params_init(void)
 {
 	static ret_code_t err_code;
@@ -1361,8 +1293,6 @@ static void gap_params_init(void)
 	ble_log_mac_address(&BLE_dev_id[strlen(DEVICE_NAME)]);
 
 	err_code = sd_ble_gap_device_name_set(&sec_mode, (const uint8_t *)BLE_dev_id, strlen(DEVICE_NAME) + 7);
-
-	bGotSanaName = true;
 
 	APP_ERROR_CHECK(err_code);
 
@@ -1539,22 +1469,28 @@ static void peer_manager_init(bool erase_bonds)
 	// Security parameters to be used for all security procedures.
 	sec_param.bond = SEC_PARAM_BOND;
 
+ #ifdef ENABLE_SECURE_BLE
 	if (bSecureBLE)
 	{
 		sec_param.mitm = SEC_PARAM_MITM_1;
 	}
 	else
+#endif //   ENABLE_SECURE_BLE
+
 	{
 		sec_param.mitm = SEC_PARAM_MITM_0;
 	}
 	sec_param.lesc = SEC_PARAM_LESC;
 	sec_param.keypress = SEC_PARAM_KEYPRESS;
 
+ #ifdef ENABLE_SECURE_BLE
 	if (bSecureBLE)
 	{
 		sec_param.io_caps = BLE_GAP_IO_CAPS_DISPLAY_ONLY;
 	}
 	else
+  #endif //   ENABLE_SECURE_BLE
+
 	{
 		sec_param.io_caps = BLE_GAP_IO_CAPS_NONE;
 	}
@@ -1721,24 +1657,21 @@ void DoBLE(void)
 {
 	// Configure and initialize the BLE stack.
 
-#if ENABLE_BLE_SERVICE_DEBUG
-	DangerWillRobinson(2, 100, 100, NO_LED | NO_LED);
-#endif // ENABLE_BLE_SERVICE_DEBUG
-
 	ble_stack_init();
 	peer_manager_init(bEraseBonds);
 	gap_params_init();
 	gatt_init();
 
+#ifdef   ENABLE_SECURE_BLE
 	if (bSecureBLE)
 	{
 		passkey();
 	}
-
+#endif //   ENABLE_SECURE_BLE
 	services_init();
 	advertising_init();
 	conn_params_init();
 }
 
-#endif // RESTOFSTUFF
+
 
