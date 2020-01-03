@@ -1,7 +1,8 @@
-
+#undef ARM_MATH_CM7
 
 #include <stdint.h>
 #include <string.h>
+
 #include "nrf.h"
 #include "nrf_gpio.h"
 #include "nrf_delay.h"
@@ -59,10 +60,17 @@
 * POSSIBILITY OF SUCH DAMAGE.
  * -------------------------------------------------------------------- */
 
+///////////////////////////////////////////////////////////////////////////////////
 
+
+// buckets to save FFT inputs
+
+
+static float32_t FFT_magnitudes[COMPLEX_FFT_SAMPLE_SIZE];
 
 char cOutbuf[128];
-float fFFTin[COMPLEX_FFT_SAMPLE_SIZE];
+
+float fFFTin[FFT_SAMPLE_SIZE];
 
 float fFFTout[COMPLEX_FFT_SAMPLE_SIZE+2];
 
@@ -71,6 +79,8 @@ float32_t maxvalue;
 uint32_t maxindex;
 
 arm_rfft_fast_instance_f32 S;
+
+
 
 /* -------------------------------------------------------------------
 * External Input and Output buffer Declarations for FFT Bin Example
@@ -84,49 +94,91 @@ uint32_t ifftFlag = 0;
 uint32_t doBitReverse = 1;
 /* Reference index at which max energy of bin ocuurs */
 uint32_t refIndex = 213, testIndex = 0;
+
+
+float32_t fft_out[FFT_SAMPLE_SIZE];
+float32_t fft_magnitude[512];
+arm_rfft_fast_instance_f32 fftInstance;
+
 /* ----------------------------------------------------------------------
 * Max magnitude FFT Bin test
 * ------------------------------------------------------------------- */
-void sana_fft(float fBinSize)
+uint32_t  ping_fft(float fBinSize)
 {
 	arm_status status;
 	float32_t maxValue;
-	float Sampling_Window;
 	uint32_t nIdx, nJdx;
+	static bool bBeenHere = false;
+	
 
-	status = ARM_MATH_SUCCESS;
-	/* Process the data through the CFFT/CIFFT module */
-	arm_cfft_f32(&arm_cfft_sR_f32_len256, fFFTin, ifftFlag, doBitReverse);
-	/* Process the data through the Complex Magnitude Module for
-	calculating the magnitude at each bin */
-	arm_cmplx_mag_f32(fFFTin, fFFTout, fftSize);
-	/* Calculates maxValue and returns corresponding BIN value */
-	arm_max_f32(fFFTout, fftSize, &maxValue, &testIndex);
+        float fMax;
+        uint16_t MaxIdx;
 
+	// First way
 
-	// arm_max_f32(fFFTout+1, FFT_SAMPLE_SIZE/2, &maxvalue, &maxindex);
+	if(!bBeenHere)
+	{
+		arm_rfft_fast_init_f32(&fftInstance, FFT_SAMPLE_SIZE);
+		bBeenHere = true;
+	}
+	
+	arm_rfft_fast_f32(&fftInstance, fFFTin, fft_out, 0);
+	arm_cmplx_mag_f32(fft_out, fft_magnitude, FFT_SAMPLE_SIZE);
+	//arm_max_f32(fft_out, FFT_SAMPLE_SIZE, &maxValue, &testIndex);
 
-	testIndex++;
+        fMax = 0.0;
+        MaxIdx = 0;
+        for(nIdx=0; nIdx<FFT_SAMPLE_SIZE / 2; nIdx++)
+        {
+          if(fft_magnitude[nIdx] > fMax)  
+          {
+            fMax = fft_magnitude[nIdx];
+            MaxIdx = nIdx;
+          }
+        }
 
-	Sampling_Window = 1000.0 * (float) FFT_SAMPLE_SIZE / 31250.0;
+       // sprintf(cOutbuf, "MaxMag = %f, MaxIdx = %d\r\n", fMax, MaxIdx);
+       // NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
 
-	sprintf(cOutbuf,"Sampling Window = %f\tMax Value:[%ld]:%f Output=\r\n",Sampling_Window, ( uint32_t)(fBinSize * testIndex) ,maxvalue);
-	NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
+#ifdef PRINT_RESULTS      
+
+	float RealPart, ImaginaryPart, Magnitude, OtherMagnitude;
 
 	nJdx = 0;
 	for(nIdx=0; nIdx<FFT_SAMPLE_SIZE; nIdx += 2)
 	{
-		sprintf(cOutbuf, "[%6d]", ( uint32_t)(fBinSize * nJdx++));
+		sprintf(cOutbuf, "[%6d]", ( uint32_t)(fBinSize * nJdx));
 		NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
 
-		sprintf(cOutbuf, "  %f", fFFTout[nIdx]);
+		sprintf(cOutbuf, "  %f", fFFTin[nJdx]);
 		NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
 
-		sprintf(cOutbuf, "  %f \r\n", fFFTout[nIdx+1]);
+		RealPart = fft_out[nIdx];
+
+		sprintf(cOutbuf, "  %f", RealPart);
+
 		NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
+
+		
+		ImaginaryPart = fft_out[nIdx+1];
+
+		sprintf(cOutbuf, "  %f", ImaginaryPart);
+		NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
+
+		Magnitude = abs(sqrt(RealPart*RealPart +  ImaginaryPart *ImaginaryPart));
+
+		OtherMagnitude = fft_magnitude[nJdx];
+
+		sprintf(cOutbuf, "  %f %f\r\n", Magnitude, OtherMagnitude);
+		NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
+
+		nJdx++;
 
 	}
 
+#endif
+
+	return MaxIdx;
 
 }
 

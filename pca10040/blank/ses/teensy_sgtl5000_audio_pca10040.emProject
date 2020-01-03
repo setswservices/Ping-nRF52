@@ -16,7 +16,7 @@
       arm_target_device_name="nRF52832_xxAA"
       arm_target_interface_type="SWD"
       c_preprocessor_definitions="BOARD_PCA10040;BSP_DEFINES_ONLY;CONFIG_GPIO_AS_PINRESET;FLOAT_ABI_HARD;INITIALIZE_USER_SECTIONS;NO_VTOR_CONFIG;NRF52;NRF52832_XXAA;NRF52_PAN_74;"
-      c_user_include_directories="../../../config;../../../../nRF5_SDK_15.0.0_a53641a/components;../../../../nRF5_SDK_15.0.0_a53641a/components/boards;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_ringbuf;../../../../nRF5_SDK_15.0.0_a53641a/components/drivers_nrf/nrf_soc_nosd;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/atomic;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/balloc;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/bsp;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/delay;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_log;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_log/src;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_memobj;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_section_vars;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/strerror;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/util;../../../../nRF5_SDK_15.0.0_a53641a/components/toolchain/cmsis/include;../../..;../../../../nRF5_SDK_15.0.0_a53641a/external/fprintf;../../../../nRF5_SDK_15.0.0_a53641a/external/segger_rtt;../../../../nRF5_SDK_15.0.0_a53641a/integration/nrfx;../../../../nRF5_SDK_15.0.0_a53641a/integration/nrfx/legacy;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/drivers/include;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/hal;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/mdk;../config;"
+      c_user_include_directories="../../../config;../../../../nRF5_SDK_15.0.0_a53641a/components/softdevice/s132/headers;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/fds;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_services/ble_dis/;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/nrf_ble_gatt;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_services/ble_dis;../../../../nRF5_SDK_15.0.0_a53641a/components/softdevice/common;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/peer_manager;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_link_ctx_manager;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/common;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_services/ble_nus;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_services/ble_bas;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_advertising;../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_services/ble_ipsp;../../../../nRF5_SDK_15.0.0_a53641a/components;../../../../nRF5_SDK_15.0.0_a53641a/components/boards;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_ringbuf;../../../../nRF5_SDK_15.0.0_a53641a/components/drivers_nrf/nrf_soc_nosd;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/atomic;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/balloc;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/bsp;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/delay;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_log;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_log/src;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_memobj;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/experimental_section_vars;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/strerror;../../../../nRF5_SDK_15.0.0_a53641a/components/libraries/util;../../../../nRF5_SDK_15.0.0_a53641a/components/toolchain/cmsis/include;../../..;../../../../nRF5_SDK_15.0.0_a53641a/external/fprintf;../../../../nRF5_SDK_15.0.0_a53641a/external/segger_rtt;../../../../nRF5_SDK_15.0.0_a53641a/integration/nrfx;../../../../nRF5_SDK_15.0.0_a53641a/integration/nrfx/legacy;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/drivers/include;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/hal;../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/mdk;../config;"
       debug_register_definition_file="../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/mdk/nrf52.svd"
       debug_start_from_entry_point_symbol="No"
       debug_target_connection="J-Link"
@@ -73,12 +73,11 @@
     <folder Name="Application">
       <file file_name="../config/sdk_config.h" />
       <file file_name="../../../drv_sgtl5000.c" />
-      <file file_name="../../../car_sample.c">
-        <configuration Name="Debug" build_exclude_from_build="Yes" />
-      </file>
       <file file_name="../../../main.c" />
-      <file file_name="../../../sana-fft.c" />
       <file file_name="../../../timer.c" />
+      <file file_name="../../../ping_fft.c" />
+      <file file_name="../../../ping_ble.c" />
+      <file file_name="../../../ble_ping.c" />
     </folder>
     <folder Name="nRF_Segger_RTT">
       <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/external/segger_rtt/SEGGER_RTT.c" />
@@ -90,20 +89,24 @@
       <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/mdk/ses_nrf52_Vectors.s" />
       <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/modules/nrfx/mdk/system_nrf52.c" />
     </folder>
-    <configuration Name="Release" linker_printf_fp_enabled="Float" />
-    <folder Name="Arm Math">
-      <file file_name="../../../arm_cfft_f32.c" />
-      <file file_name="../../../arm_cfft_radix8_f32.c" />
-      <file file_name="../../../arm_cmplx_mag_f32.c" />
-      <file file_name="../../../arm_common_tables.c" />
-      <file file_name="../../../arm_common_tables.h" />
-      <file file_name="../../../arm_const_structs.c" />
-      <file file_name="../../../arm_fft_bin_data.c" />
-      <file file_name="../../../arm_max_f32.c" />
-      <file file_name="../../../arm_rfft_fast_f32.c" />
-      <file file_name="../../../arm_rfft_fast_init_f32.c" />
-      <file file_name="../../../arm_sin_f32.c" />
+    <folder Name="nRF_BLE">
+      <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/components/ble/common/ble_advdata.c" />
+      <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/components/ble/common/ble_srv_common.c" />
     </folder>
+    <folder Name="nRF_BLE_Services">
+      <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/components/ble/ble_services/ble_ipsp/ble_ipsp.c" />
+    </folder>
+    <folder Name="nRF_SoftDevice">
+      <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/components/softdevice/common/nrf_sdh.c" />
+      <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/components/softdevice/common/nrf_sdh_ble.c" />
+      <file file_name="../../../../nRF5_SDK_15.0.0_a53641a/components/softdevice/common/nrf_sdh_soc.c" />
+    </folder>
+    <configuration
+      CMSIS_CORE="Yes"
+      CMSIS_DSP="Cortex-M7 Little Endian With FPU"
+      Name="Release"
+      c_user_include_directories="D:\\Projects\\SmokeAlarm\\nRF5_SDK_15.0.0_a53641a\\components\\softdevice\\s132\\headers"
+      linker_printf_fp_enabled="Float" />
     <configuration Name="Debug" linker_printf_fp_enabled="Float" />
   </project>
   <configuration

@@ -1,4 +1,10 @@
+#include <ble.h>
+#include <ble_gap.h>
+
+
 #define TIMER1_REPEAT_RATE 		(1000) 	// 5 millisecond repeating timer in microseconds
+
+#define 	NRF_SDH_BLE_GATT_MAX_MTU_SIZE	247
 
 // Number of stereo pairs per I2S access
 #define AUDIO_FRAME_NUM_SAMPLES                   			256
@@ -11,11 +17,15 @@
 
 extern void Timer1_Init(uint32_t repeat_rate);
 extern uint32_t ElapsedTimeInMilliseconds(void);
-extern void sana_fft(float fBinSize);
+extern uint32_t ping_fft(float fBinSize);
+extern void GetMacAddress(void);
+extern 	ble_gap_addr_t MAC_Address;
 
 
 extern uint32_t Num_Mic_Samples;
-extern float fFFTin[COMPLEX_FFT_SAMPLE_SIZE];
+
+extern float fFFTin[FFT_SAMPLE_SIZE];
+
 extern float fFFTout[COMPLEX_FFT_SAMPLE_SIZE+2];
 extern char cOutbuf[128];
 
@@ -28,6 +38,9 @@ extern uint32_t RxTimeDelta;
 
 extern uint32_t  m_i2s_tx_buffer[I2S_BUFFER_SIZE_WORDS];
 extern uint32_t  m_i2s_rx_buffer[I2S_BUFFER_SIZE_WORDS];
+
+extern volatile bool bBleConnected;
+extern uint16_t hvx_sent_count;
 
 
 

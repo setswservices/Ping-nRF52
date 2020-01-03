@@ -38,6 +38,8 @@
  * 
  */
 
+ #undef ARM_MATH_CM7
+
 #include "drv_sgtl5000.h"
 
 #include "nrf_log.h"
@@ -223,10 +225,13 @@ static void i2s_data_handler(nrf_drv_i2s_buffers_t const * p_released,
 
 	Num_Mic_Samples++;
 		
-        if (m_state == SGTL5000_STATE_RUNNING_LOOPBACK)
+        if (m_state == SGTL5000_STATE_RUNNING)
         {
 		if(bCaptureRx)
 		{
+
+			NRF_LOG_RAW_INFO("Capturing!!\r\n");
+		
 			RxTimeBeg = ElapsedTimeInMilliseconds();
 			Current_RX_Buffer = (int16_t *) p_released->p_rx_buffer ;
 
@@ -724,7 +729,6 @@ uint32_t drv_sgtl5000_start_mic_listen(void)
     
     return NRF_ERROR_INVALID_STATE;
 }
-
 
 /* Starts the I2S peripheral, forwards MIC input to Speaker. No events are forwarded to the application. */
 uint32_t drv_sgtl5000_start_mic_loopback(void)

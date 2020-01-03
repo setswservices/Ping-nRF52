@@ -1,53 +1,19 @@
-/**
- * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
- * 
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
- * 
- * 2. Redistributions in binary form, except as embedded into a Nordic
- *    Semiconductor ASA integrated circuit in a product or a software update for
- *    such product, must reproduce the above copyright notice, this list of
- *    conditions and the following disclaimer in the documentation and/or other
- *    materials provided with the distribution.
- * 
- * 3. Neither the name of Nordic Semiconductor ASA nor the names of its
- *    contributors may be used to endorse or promote products derived from this
- *    software without specific prior written permission.
- * 
- * 4. This software, with or without modification, must only be used with a
- *    Nordic Semiconductor ASA integrated circuit.
- * 
- * 5. Any software provided in binary form under this license must not be reverse
- *    engineered, decompiled, modified and/or disassembled.
- * 
- * THIS SOFTWARE IS PROVIDED BY NORDIC SEMICONDUCTOR ASA "AS IS" AND ANY EXPRESS
- * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL NORDIC SEMICONDUCTOR ASA OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- */
-/** @file
- * This file contains the source code for a sample application using I2S.
- * Included as well is the driver and support for using the Teensy SGTL5000 Audio board.
- */
+// In 1996, the ANSI and the NFPA recommended a standard evacuation pattern to eliminate confusion. The pattern is uniform without regard to the sound used. 
+// This pattern, which is also used for smoke alarms, is named the Temporal-Three alarm signal, often referred to as "T-3" (ISO 8201 and ANSI/ASA S3.41 
+// Temporal Pattern) and produces an interrupted four count (three half second pulses, followed by a one and one half second pause, repeated for a minimum of 180 seconds)
 
+#undef ARM_MATH_CM7
+ 
 #include <stdio.h>
+#include <stdlib.h> 
 #include "nrf_drv_i2s.h"
 #include "nrf_delay.h"
 #include "app_util_platform.h"
 #include "app_error.h"
 #include "boards.h"
+
+#include <ble.h>
+#include <ble_gap.h>
 
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
@@ -57,16 +23,13 @@
 #include "arm_math.h"
 
 #include "ping_config.h"
-
-
-
+#include "timer.h"
 
 /************************************************************
 *   Include support for SGTL5000. 
 ************************************************************/
 
 #include "drv_sgtl5000.h"
-
 
 
 // Each I2S access/interrupt provides AUDIO_FRAME_NUM_SAMPLES of 32-bit stereo pairs
@@ -84,6 +47,7 @@ static uint32_t sample_idx          = 0;
 
 #define SAMPLE_LEN                  67200
 static uint8_t * p_sample ;
+
 
 
 static bool i2s_sgtl5000_driver_evt_handler(drv_sgtl5000_evt_t * p_evt)
@@ -163,108 +127,170 @@ void gpio_init(void)
     nrf_gpio_cfg_output(LED_1);
     nrf_gpio_cfg_output(LED_2);
     nrf_gpio_cfg_output(LED_3);
-    nrf_gpio_pin_set(LED_1);
-    nrf_gpio_pin_set(LED_2);
-    nrf_gpio_pin_set(LED_3);
 }
+
+bool bEraseBonds = true;
+bool connectedToBondedDevice = false;
+
+uint16_t currentConnectionInterval = 0;
+
+volatile bool bSanaConnected = false;
+volatile bool bSendParameters = false;
 
 
 int main(void)
 {
-    uint32_t err_code = NRF_SUCCESS;
-
-    gpio_init();
-
-    Timer1_Init(TIMER1_REPEAT_RATE);
-
-    err_code = NRF_LOG_INIT(NULL);
-    APP_ERROR_CHECK(err_code);
-    NRF_LOG_DEFAULT_BACKENDS_INIT();
+	uint32_t err_code = NRF_SUCCESS;
+	uint16_t nIdx, nJdx;
+	uint32_t nSeed = 0;
 
 
+	gpio_init();
 
-    NRF_LOG_RAW_INFO("Init started\r\n");
+	// Get MAC Address
 
-    // Enable audio
-    drv_sgtl5000_init_t sgtl_drv_params;
-    sgtl_drv_params.i2s_tx_buffer           = (void*)m_i2s_tx_buffer;
-    sgtl_drv_params.i2s_rx_buffer           = (void*)m_i2s_rx_buffer;
-    sgtl_drv_params.i2s_buffer_size_words   =  I2S_BUFFER_SIZE_WORDS; ; //I2S_BUFFER_SIZE_WORDS/2;
-    sgtl_drv_params.i2s_evt_handler         = i2s_sgtl5000_driver_evt_handler;
-    sgtl_drv_params.fs                      = DRV_SGTL5000_FS_31250HZ;
+	GetMacAddress();
 
-#ifdef DOING_TX
-    m_i2s_tx_buffer[0] = 167;
-    m_i2s_tx_buffer[I2S_BUFFER_SIZE_WORDS/2] = 167;
+	// Because the NRF_LOG macros only support up to five varargs after the format string, we need to break this into two calls.
+	NRF_LOG_RAW_INFO("\r\n---------------------------------------------------------------------\r\n");
+	NRF_LOG_RAW_INFO("\r\nMAC Address = %02X:%02X:%02X:", MAC_Address.addr[5], MAC_Address.addr[4], MAC_Address.addr[3]);
+	NRF_LOG_RAW_INFO("%02X:%02X:%02X\r\n", MAC_Address.addr[2], MAC_Address.addr[1], MAC_Address.addr[0]);
+
+	// Generate a random seed
+
+	for(nIdx=0; nIdx < 6 ; nIdx++)
+	{
+		nSeed += ((uint32_t) MAC_Address.addr[nIdx] ) << nIdx;	
+	}
+
+	srand(nSeed);
+
+	NRF_LOG_RAW_INFO("Random seed is %d-\r\n", nSeed);
+
+	Timer1_Init(TIMER1_REPEAT_RATE);
+
+	err_code = NRF_LOG_INIT(NULL);
+	APP_ERROR_CHECK(err_code);
+	NRF_LOG_DEFAULT_BACKENDS_INIT();
+
+#ifdef TESTLEDS
+	for(nJdx=LED_1; nJdx <= LED_4; nJdx++)
+	for(nIdx=0; nIdx < 3 ; nIdx++)
+	{
+		nrf_gpio_pin_set(nJdx);
+		nrf_delay_ms(500);
+		nrf_gpio_pin_clear(nJdx);
+		nrf_delay_ms(500);
+	}
 #endif
 
-    NRF_LOG_RAW_INFO("AUDIO_FRAME_NUM_SAMPLES = %d\r\n", AUDIO_FRAME_NUM_SAMPLES);
-    NRF_LOG_RAW_INFO("size of  m_i2s_rx_buffer %d =  %d 32-bit samples\r\n", sizeof(m_i2s_rx_buffer) / sizeof(uint32_t), I2S_BUFFER_SIZE_WORDS);
-    NRF_LOG_RAW_INFO("i2s_initial_Rx_buffer addr1: %d, addr2: %d\r\n", m_i2s_rx_buffer, m_i2s_rx_buffer + I2S_BUFFER_SIZE_WORDS/2);
-   
-    drv_sgtl5000_init(&sgtl_drv_params);
-    drv_sgtl5000_stop();
-    NRF_LOG_RAW_INFO("Audio initialization done.\r\n");
-
-#ifdef ENABLE_PLAYBACK
-    /* Demonstrate playback */
-    drv_sgtl5000_start_sample_playback();
-    nrf_delay_ms(2000);
-    drv_sgtl5000_stop();
-    
-    /* Demonstrate playback form application handler */
-    drv_sgtl5000_start();
-    nrf_delay_ms(2000);
-    drv_sgtl5000_stop();
-#endif //  ENABLE_PLAYBACK
-
-    /* Demonstrate Mic loopback */
-    NRF_LOG_RAW_INFO("Loop in main and loopback MIC data.\r\n");
-    drv_sgtl5000_start_mic_loopback();
-    
-    for (;;)
-    {
-    	uint32_t nIdx, nJdx;
-	static bool bBeenHere = false;
-	float fBinSize;
-
-	if(!bBeenHere && ElapsedTimeInMilliseconds() > 1000)
+	// Turn Off LEDs
+	for(nJdx=LED_1; nJdx <= LED_4; nJdx++)  
 	{
-		bCaptureRx = true;
-
-		// Wait for capture
-		while(bCaptureRx)   nrf_delay_ms(1);
-
-		NRF_LOG_RAW_INFO("Copied RX in %d msec\r\n", RxTimeDelta);
-
-			
-	    	NRF_LOG_RAW_INFO("[%d] Num_Mic_Samples = %d, Mono FFT Sample Size = %d\n\r",ElapsedTimeInMilliseconds(), Num_Mic_Samples, FFT_SAMPLE_SIZE);
-		fBinSize = ( 31250.0 /2 ) / (FFT_SAMPLE_SIZE /2 );
-
-		sprintf(cOutbuf, "fBinSize = %f\n\r", fBinSize); 	NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
-
-
-		// Convert stereo 16-bit samples to mono float samples, half as many
-		nJdx = 0;
-		for(nIdx=0; nIdx < FFT_SAMPLE_SIZE * 2; nIdx += 2)
-		{
-			fFFTin[nJdx++] = (float)  Rx_Buffer[nIdx];
-
-			NRF_LOG_RAW_INFO("%8d\r\n",Rx_Buffer[nIdx]);
-	
-			fFFTin[nJdx++] = 0.0;
-		}
-		
-		NRF_LOG_RAW_INFO("Doing FFT\r\n");
-		sana_fft(fBinSize);
-
-		bBeenHere = true;
+		NRF_LOG_RAW_INFO("LED %d OFF\r\n", nJdx);
+         	 nrf_gpio_pin_set(nJdx);
 	}
+
+	NRF_LOG_RAW_INFO("Init started\r\n");
+
+	// Enable audio
+	drv_sgtl5000_init_t sgtl_drv_params;
+	sgtl_drv_params.i2s_tx_buffer           = (void*)m_i2s_tx_buffer;
+	sgtl_drv_params.i2s_rx_buffer           = (void*)m_i2s_rx_buffer;
+	sgtl_drv_params.i2s_buffer_size_words   =  I2S_BUFFER_SIZE_WORDS; ; //I2S_BUFFER_SIZE_WORDS/2;
+	sgtl_drv_params.i2s_evt_handler         = i2s_sgtl5000_driver_evt_handler;
+	sgtl_drv_params.fs                      = DRV_SGTL5000_FS_31250HZ;
+
+#ifdef DOING_TX
+	m_i2s_tx_buffer[0] = 167;
+	m_i2s_tx_buffer[I2S_BUFFER_SIZE_WORDS/2] = 167;
+#endif
+
+	NRF_LOG_RAW_INFO("AUDIO_FRAME_NUM_SAMPLES = %d\r\n", AUDIO_FRAME_NUM_SAMPLES);
+	NRF_LOG_RAW_INFO("size of  m_i2s_rx_buffer %d =  %d 32-bit samples\r\n", sizeof(m_i2s_rx_buffer) / sizeof(uint32_t), I2S_BUFFER_SIZE_WORDS);
+	NRF_LOG_RAW_INFO("i2s_initial_Rx_buffer addr1: %d, addr2: %d\r\n", m_i2s_rx_buffer, m_i2s_rx_buffer + I2S_BUFFER_SIZE_WORDS/2);
+
+	drv_sgtl5000_init(&sgtl_drv_params);
+	drv_sgtl5000_stop();
+	NRF_LOG_RAW_INFO("Audio initialization done.\r\n");
+
+	/* Demonstrate Mic loopback */
+	NRF_LOG_RAW_INFO("Loop in main and loopback MIC data.\r\n");
+	drv_sgtl5000_start_mic_listen();
+
 	
-	nrf_delay_ms(1000);
-	NRF_LOG_FLUSH();
-    }
-}
+
+	for (;;)
+	{
+		uint32_t nIdx, nJdx, nKdx;
+		static bool bBeenHere = false;
+		float fBinSize;
+		uint32_t Dominant_Index;
+
+		if(ElapsedTimeInMilliseconds() > 1000)
+		{
+			// Signal that we want to capture
+			bCaptureRx = true;
+
+			//NRF_LOG_RAW_INFO("StartTime = %d\r\n", ElapsedTimeInMilliseconds());
+
+			// Wait for capture
+			while(bCaptureRx)   nrf_delay_ms(1);
+
+			//NRF_LOG_RAW_INFO("Copied RX in %d msec\r\n", RxTimeDelta);
+
+				
+			//NRF_LOG_RAW_INFO("[%d] Num_Mic_Samples = %d, Mono FFT Sample Size = %d\n\r",ElapsedTimeInMilliseconds(), Num_Mic_Samples, FFT_SAMPLE_SIZE);
+			fBinSize = ( 31250.0 /2 ) / (FFT_SAMPLE_SIZE /2 );
+
+			//sprintf(cOutbuf, "fBinSize = %f\n\r", fBinSize); 	NRF_LOG_RAW_INFO("%s", (uint32_t) cOutbuf);
+
+			// Convert stereo 16-bit samples to mono float samples, half as many
+			nJdx = 0;
+			nKdx = 0;
+
+			for(nIdx=0; nIdx < FFT_SAMPLE_SIZE * 2; nIdx += 2)
+			{
+				fFFTin[nKdx] = (float)  Rx_Buffer[nIdx];
+				nKdx++;
+
+				//NRF_LOG_RAW_INFO("%8d\r\n",Rx_Buffer[nIdx]);
+			}
+
+			//NRF_LOG_RAW_INFO("Doing FFT\r\n");
+
+			uint32_t BegTime, EndTime, DeltaTime;
+			uint32_t nIterations = 10;
+
+			BegTime = ElapsedTimeInMilliseconds();
+
+			Dominant_Index = ping_fft(fBinSize);
+			
+			EndTime = ElapsedTimeInMilliseconds();
+			
+			DeltaTime = EndTime - BegTime;
+
+			if((Dominant_Index >= 51) && (Dominant_Index <= 53))
+			{
+                            NRF_LOG_RAW_INFO("Dominant_Index = %d\r\n", Dominant_Index);
+				nrf_gpio_pin_clear(LED_3);
+			}
+			else
+			{
+				nrf_gpio_pin_set(LED_3);
+			}
+
+                     //   NRF_LOG_RAW_INFO("BegTime = %d EndTime = %d\r\n", BegTime, EndTime);
+			//NRF_LOG_RAW_INFO("For %d Iterations, took %d msec\r\n", nIterations, DeltaTime);
+
+
+			bBeenHere = true;
+		}
+
+		nrf_delay_ms(100);
+		NRF_LOG_FLUSH();
+	}
+	}
 
 
 

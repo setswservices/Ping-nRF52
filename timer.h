@@ -3,7 +3,7 @@
 //
 //	File Name:		timer.h
 //	Author(s):		Jeffery Bahr, Dmitriy Antonets, Steve Elstad, Mike Brashears, James Cannan
-//	Copyright Notice:	Copyright, 2017, Sana Health Inc
+//	Copyright Notice:	Copyright, 2019, Ping, LLC
 //
 //	Purpose/Functionality:	Defines and externs associated with timer.c
 //
