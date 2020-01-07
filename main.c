@@ -134,7 +134,7 @@ bool connectedToBondedDevice = false;
 
 uint16_t currentConnectionInterval = 0;
 
-volatile bool bSanaConnected = false;
+volatile bool bPingConnected = false;
 volatile bool bSendParameters = false;
 
 
@@ -146,6 +146,8 @@ int main(void)
 
 
 	gpio_init();
+
+	DoBLE();
 
 	// Get MAC Address
 

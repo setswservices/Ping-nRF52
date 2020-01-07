@@ -11,56 +11,50 @@
 
 
 #include "app_config.h"
- 
-#include <stdio.h>
-#include <stdlib.h> 
-#include "nrf_delay.h"
-#include "app_util_platform.h"
-#include <app_timer.h>
-#include <bsp.h>
-#include "app_error.h"
-#include "boards.h"
 
-// Definitions for NRF Logging prototypes, macros and declarations
+#include <stdint.h>
+#include <string.h>
+
+#include "ble_ping.h"
+#include "ping_ble.h"
+
+#include "nordic_common.h"
+#include "nrf.h"
+#include "nrf_sdm.h"
+#include "app_error.h"
+#include "ble.h"
+#include "ble_err.h"
+#include "ble_hci.h"
+#include "ble_srv_common.h"
+#include "ble_advdata.h"
+#include "ble_advertising.h"
+#include "ble_bas.h"
+#include "ble_hrs.h"
+#include "ble_dis.h"
+#include "ble_conn_params.h"
+#include "sensorsim.h"
+#include "nrf_sdh.h"
+#include "nrf_sdh_ble.h"
+#include "nrf_sdh_soc.h"
+#include "app_timer.h"
+#include "bsp_btn_ble.h"
+#include "peer_manager.h"
+#include "fds.h"
+#include "nrf_ble_gatt.h"
+#include "nrf_ble_qwr.h"
+#include "ble_conn_state.h"
+#include "nrf_pwr_mgmt.h"
+
+#include <ble_gap.h>
 
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
+#include "timer.h"
 
-#include <nrf_error.h>
+#include <nrf_delay.h>
 
 #include "ping_config.h"
-
-// Definitions for BLE
-
-#include <ble.h>
-#include "ble_ping.h"
-#include "ping_ble.h"
-#include <ble_advdata.h>
-#include <ble_advertising.h>
-#include <ble_bas.h>
-#include <ble_err.h>
-#include <ble_conn_params.h>
-#include <nrf_ble_gatt.h>
-#include <nrf_sdh.h>
-#include <nrf_sdh_soc.h>
-#include <nrf_sdh_ble.h>
-#include <peer_manager.h>
-#include <ble_gap.h>
-#include <ble_conn_state.h>
-#include <ble_nus.h>
-#include <ble_dis.h>
-#include <nrf_sdm.h>
-
-#include <nrf_sdh.h>
-#include <nrf_sdh_soc.h>
-#include <nrf_sdh_ble.h>
-
-#ifdef ENABLE_FLASH
-#include <fds.h>
-#endif // ENABLE_FLASH
-
-#include "timer.h"
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -82,9 +76,6 @@
 #define INVALID_SESSION_ID			-1
 
 #define ENABLE_BLE_SERVICE_DEBUG				1
-
-
-
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -121,17 +112,9 @@ uint8_t BLE_buffer[21];
 
 uint16_t CheckSumVCFW;
 
-bool bEraseBonds = true;
-bool connectedToBondedDevice = false;
+
 
 volatile bool bBleConnected = false;
-
- uint16_t currentConnectionInterval = 0;
-
-volatile bool bSanaConnected = false;
-
-volatile bool bSendParameters = false;
-
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +123,7 @@ volatile bool bSendParameters = false;
 //  Note that most of the function names here are those used in the Nordic SDK examples.  We have 
 //  maintained them to allow comparison with existing examples.
 //
-//  Those functions that are not Sana-specific have comments imported from the SDK examples.
+//  Those functions that are not Ping-specific have comments imported from the SDK examples.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -190,7 +173,7 @@ static void ble_log_mac_address(uint8_t *devname)
 //
 // Parameter(s):
 //
-//	SanaPacketType		string representing  mask name
+//	PingPacketType		string representing  mask name
 //	BLEpacket			pointer to packet buffer
 //	BLEpacketLen			packet buffer length
 //
@@ -202,7 +185,7 @@ static void ble_log_mac_address(uint8_t *devname)
 
 #define	MAX_BLE_RETRIES		20
 
-int Ble_ping_send_data(uint8_t SanaPacketType, uint8_t *BLEpacket, uint8_t BLEpacketLen)
+int Ble_ping_send_data(uint8_t PingPacketType, uint8_t *BLEpacket, uint8_t BLEpacketLen)
 {
 	uint32_t err_code;
 	uint16_t nIdx, nJdx;
@@ -234,11 +217,11 @@ int Ble_ping_send_data(uint8_t SanaPacketType, uint8_t *BLEpacket, uint8_t BLEpa
 
 	
 #if ENABLE_BLE_SEND_DATA_DEBUG
-	NRF_LOG_RAW_INFO("*** Ble_ping_send_data: SanaPacketType = %d, Len=%d, BLE_PING_MAX_DATA_LEN = %d\r\n", SanaPacketType, BLEpacketLen, BLE_PING_MAX_DATA_LEN);
+	NRF_LOG_RAW_INFO("*** Ble_ping_send_data: PingPacketType = %d, Len=%d, BLE_PING_MAX_DATA_LEN = %d\r\n", PingPacketType, BLEpacketLen, BLE_PING_MAX_DATA_LEN);
 #endif
 	
 
-	BLE_buffer[0] = SanaPacketType;
+	BLE_buffer[0] = PingPacketType;
 
 	if (m_ping.conn_handle == BLE_CONN_HANDLE_INVALID)
 	{
@@ -269,7 +252,7 @@ int Ble_ping_send_data(uint8_t SanaPacketType, uint8_t *BLEpacket, uint8_t BLEpa
 	{
 
 #if ENABLE_BLE_SEND_DATA_DEBUG
-		NRF_LOG_RAW_INFO("[%8d]Ble_ping_send_data:  PT=%02x, Len=%d, \r\n", global_msec_counter, SanaPacketType, BLEpacketLen);
+		NRF_LOG_RAW_INFO("[%8d]Ble_ping_send_data:  PT=%02x, Len=%d, \r\n", global_msec_counter, PingPacketType, BLEpacketLen);
 #endif
 
 		ping_ble_msg_len = (BLEpacketLen + 1);
@@ -666,7 +649,7 @@ void NewModeAnnouncement(uint16_t mode)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// The ble_ping_data_handler() function handles the data arriving over BLE on the Sana UART
+// The ble_ping_data_handler() function handles the data arriving over BLE on the Ping UART
 // service.
 //
 // Parameter(s):
@@ -963,7 +946,7 @@ static void ble_ping_data_handler(ble_ping_t *p_ping, uint8_t *p_data, uint16_t 
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// The ping_data_handler() function is the event handler for new data on the Sana UART 
+// The ping_data_handler() function is the event handler for new data on the Ping UART 
 // service.
 //
 // Parameter(s):
@@ -1090,7 +1073,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 	case BLE_GAP_EVT_DISCONNECTED:
 		NRF_LOG_RAW_INFO("Disconnected\r\n");
 		m_conn_handle = BLE_CONN_HANDLE_INVALID;
-		bSanaConnected = false;
+		bPingConnected = false;
 		connectedToBondedDevice = false;
 		
  #ifdef ENABLE_SECURE_BLE
@@ -1131,7 +1114,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 		}
 #endif //   ENABLE_SECURE_BLE
 
-		bSanaConnected = true;
+		bPingConnected = true;
 		
 		break;
 	case BLE_GAP_EVT_CONN_PARAM_UPDATE:
@@ -1478,7 +1461,7 @@ static void peer_manager_init(bool erase_bonds)
 #endif //   ENABLE_SECURE_BLE
 
 	{
-		sec_param.mitm = SEC_PARAM_MITM_0;
+		sec_param.mitm = 0;
 	}
 	sec_param.lesc = SEC_PARAM_LESC;
 	sec_param.keypress = SEC_PARAM_KEYPRESS;
@@ -1540,7 +1523,7 @@ static void sec_req_timeout_handler(void)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// The getPin() function is the  Sana proprietary algorithm for generating 6-digit passcode 
+// The getPin() function is the  Ping proprietary algorithm for generating 6-digit passcode 
 // from the MAC address    
 //
 // Parameter(s):
@@ -1661,13 +1644,6 @@ void DoBLE(void)
 	peer_manager_init(bEraseBonds);
 	gap_params_init();
 	gatt_init();
-
-#ifdef   ENABLE_SECURE_BLE
-	if (bSecureBLE)
-	{
-		passkey();
-	}
-#endif //   ENABLE_SECURE_BLE
 	services_init();
 	advertising_init();
 	conn_params_init();

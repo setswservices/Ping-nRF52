@@ -2,84 +2,58 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 //
 //	File Name:		ble_ping.c
-//	Author(s):		Jeffery Bahr, Dmitriy Antonets, Steve Elstad, Mike Brashears, James Cannan
-//	Copyright Notice:	Copyright, 2017, Sana Health Inc
+//	Author(s):		Jeffery Bahr, Dmitriy Antonets
+//	Copyright Notice:	Copyright, 2019, Ping, LLC
 //
-//	Purpose/Functionality:	Implements Sana custom BLE service
+//	Purpose/Functionality:	Implements Ping custom BLE service
 //
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef NONO
+
+
 #include "app_config.h"
 
-#include "ble.h"
+#include <stdint.h>
+#include <string.h>
+
 #include "ble_ping.h"
-#include "ble_srv_common.h"
+#include "ping_ble.h"
 
-// Definitions for NRF Logging prototypes, macros and declarations
-#include "nrf_log.h"
-
-// Definitions for prototypes, macros and declarations -- Sana-Specific
-#include "ping_config.h"
-#include "ping_data_alpha.h"
-
-#include "ble_err.h"
-#include "ble_conn_params.h"
-#include "peer_manager.h"
-
-#include "ble_conn_state.h"
-#include "nrf_ble_gatt.h"
-
-#else
-
-#include "app_config.h"
- 
-#include <stdio.h>
-#include <stdlib.h> 
-//#include "nrf_drv_i2s.h"
-#include "nrf_delay.h"
-#include "app_util_platform.h"
+#include "nordic_common.h"
+#include "nrf.h"
+#include "nrf_sdm.h"
 #include "app_error.h"
-#include "boards.h"
-
-// Definitions for NRF Logging prototypes, macros and declarations
+#include "ble.h"
+#include "ble_err.h"
+#include "ble_hci.h"
+#include "ble_srv_common.h"
+#include "ble_advdata.h"
+#include "ble_advertising.h"
+#include "ble_bas.h"
+#include "ble_hrs.h"
+#include "ble_dis.h"
+#include "ble_conn_params.h"
+#include "sensorsim.h"
+#include "nrf_sdh.h"
+#include "nrf_sdh_ble.h"
+#include "nrf_sdh_soc.h"
+#include "app_timer.h"
+#include "bsp_btn_ble.h"
+#include "peer_manager.h"
+#include "fds.h"
+#include "nrf_ble_gatt.h"
+#include "nrf_ble_qwr.h"
+#include "ble_conn_state.h"
+#include "nrf_pwr_mgmt.h"
 
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 #include "nrf_log_default_backends.h"
+#include "timer.h"
 
-#include <nrf_error.h>
 
 #include "ping_config.h"
 
-// Definitions for BLE
-
-#include <ble.h>
-#include "ble_ping.h"
-#include "ping_ble.h"
-#include <ble_advdata.h>
-#include <ble_advertising.h>
-#include <ble_bas.h>
-#include <ble_err.h>
-#include <ble_conn_params.h>
-#include <nrf_ble_gatt.h>
-#include <nrf_sdh.h>
-#include <nrf_sdh_soc.h>
-#include <nrf_sdh_ble.h>
-#include <peer_manager.h>
-#include <ble_gap.h>
-#include <ble_conn_state.h>
-#include <ble_nus.h>
-#include <ble_dis.h>
-#include <nrf_sdm.h>
-
-#include <nrf_sdh.h>
-#include <nrf_sdh_soc.h>
-#include <nrf_sdh_ble.h>
-
-#include "timer.h"
-
-#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 //  Defines                                                                                                                                               //
@@ -125,7 +99,7 @@ uint16_t hvx_sent_count = 0;
 //
 // Parameter(s):
 //
-//	p_ping     	Sana/Nordic UART Service structure.
+//	p_ping     	Ping/Nordic UART Service structure.
 //	p_ble_evt 	Pointer to the event received from BLE stack.
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -142,7 +116,7 @@ static void on_connect(ble_ping_t *p_ping, ble_evt_t const *p_ble_evt)
 //
 // Parameter(s):
 //
-//	p_ping     	Sana/Nordic UART Service structure.
+//	p_ping     	Ping/Nordic UART Service structure.
 //	p_ble_evt 	Pointer to the event received from BLE stack.
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -160,7 +134,7 @@ static void on_disconnect(ble_ping_t *p_ping, ble_evt_t const *p_ble_evt)
 //
 // Parameter(s):
 //
-//	p_ping     	Sana/Nordic UART Service structure.
+//	p_ping     	Ping/Nordic UART Service structure.
 //	p_ble_evt 	Pointer to the event received from BLE stack.
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -203,7 +177,7 @@ static void on_write(ble_ping_t *p_ping, ble_evt_t const *p_ble_evt)
 //
 // Parameter(s):
 //
-//	p_ping       	Sana/Nordic UART Service structure.
+//	p_ping       	Ping/Nordic UART Service structure.
 //	p_ping_init  	Information needed to initialize the service.
 //
 // Returns NRF_SUCCESS on success, otherwise an error code.
@@ -269,7 +243,7 @@ static uint32_t tx_char_add(ble_ping_t *p_ping, ble_ping_init_t const *p_ping_in
 //
 // Parameter(s):
 //
-//	p_ping       	Sana/Nordic UART Service structure.
+//	p_ping       	Ping/Nordic UART Service structure.
 //	p_ping_init  	Information needed to initialize the service.
 //
 // Returns NRF_SUCCESS on success, otherwise an error code.
@@ -322,7 +296,7 @@ static uint32_t rx_char_add(ble_ping_t *p_ping, const ble_ping_init_t *p_ping_in
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// The ble_ping_on_ble_evt() function is the event-handler for the Sana UART custom service.
+// The ble_ping_on_ble_evt() function is the event-handler for the Ping UART custom service.
 //
 //  Parameter(s) are:
 //
@@ -379,7 +353,7 @@ void ble_ping_on_ble_evt(ble_evt_t const *p_ble_evt, void *p_context)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// The ble_ping_init() function is the initialization function for the Sana UART custom service.
+// The ble_ping_init() function is the initialization function for the Ping UART custom service.
 //
 //  Parameter(s) are:
 //
@@ -432,7 +406,7 @@ uint32_t ble_ping_init(ble_ping_t *p_ping, ble_ping_init_t const *p_ping_init)
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// The ble_ping_string_send() function sends a string over BLE using the custom Sana UART
+// The ble_ping_string_send() function sends a string over BLE using the custom Ping UART
 // service.
 //
 //  Parameter(s) are:

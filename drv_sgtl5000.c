@@ -38,7 +38,7 @@
  * 
  */
 
- #undef ARM_MATH_CM7
+#include "app_config.h"
 
 #include "drv_sgtl5000.h"
 
@@ -49,26 +49,10 @@
 #include "nrf_drv_twi.h"
 #include "string.h"
 
-#define ARM_MATH_CM4
-#include "arm_math.h"
-
 #include "ping_config.h"
 
-/**
- * @brief   Teensy SGTL5000 Audio board driver for nRF52 series
- */
-
-/* Define SINE table for testing audio output if needed for testing */
-//#define SGTL5000_SINE_TABLE_LEN 32
-//const static int16_t m_sine_table[SGTL5000_SINE_TABLE_LEN] = 
-//    {-16384, -13086, -9923,  -7024,  -4509,  -2480,  -1020,  -189, 
-//     -21,    -523,   -1674,  -3428,  -5712,  -8433,  -11479, -14726, 
-//     -18042, -21289, -24335, -27056, -29340, -31094, -32245, -32747, 
-//     -32579, -31748, -30288, -28259, -25744, -22845, -19682, -16384};
-
-/* Define TWI instance used to communicate/configure audio device */
 static nrf_drv_twi_t              m_twi_instance   = NRF_DRV_TWI_INSTANCE(DRV_SGTL5000_TWI_INSTANCE);
-/* Define i2s handler to handle audio data to and from audio device */
+
 static drv_sgtl5000_handler_t     m_i2s_evt_handler;
 /* Define i2s configuration for audio device */
 static nrf_drv_i2s_config_t       m_i2s_config;

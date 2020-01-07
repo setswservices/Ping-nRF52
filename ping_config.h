@@ -1,3 +1,6 @@
+#ifndef __PING_CONFIG_H__
+#define __PING_CONFIG_H__
+
 #include <ble.h>
 #include <ble_gap.h>
 
@@ -23,6 +26,7 @@ extern uint32_t ElapsedTimeInMilliseconds(void);
 extern uint32_t ping_fft(float fBinSize);
 extern void GetMacAddress(void);
 extern 	ble_gap_addr_t MAC_Address;
+extern void DoBLE(void);
 
 
 extern uint32_t Num_Mic_Samples;
@@ -44,7 +48,13 @@ extern uint32_t  m_i2s_rx_buffer[I2S_BUFFER_SIZE_WORDS];
 
 extern volatile bool bBleConnected;
 extern uint16_t hvx_sent_count;
+extern volatile bool bSendParameters;
+extern volatile bool bPingConnected;
+extern  uint16_t currentConnectionInterval;
+extern bool connectedToBondedDevice;
+extern bool bEraseBonds;
 
 
 
+#endif //  __PING_CONFIG_H__
 

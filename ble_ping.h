@@ -2,8 +2,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 //
 //	File Name:		ble_ping.h
-//	Author(s):		Jeffery Bahr, Dmitriy Antonets, Steve Elstad, Mike Brashears, James Cannan
-//	Copyright Notice:	Copyright, 2017, Sana Health Inc
+//	Author(s):		Jeffery Bahr, Dmitriy Antonets
+//	Copyright Notice:	Copyright, 2019, Ping, LLC
 //
 //	Purpose/Functionality:	Defines and externs associated with ble_ping.c
 //
@@ -83,8 +83,8 @@
 #include <stdbool.h>
 #include "sdk_config.h"
 #include "ble.h"
-#include "ble_srv_common.h"
-#include "nrf_sdh_ble.h"
+//#include "ble_srv_common.h"
+//#include "nrf_sdh_ble.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,7 +97,7 @@ extern "C" {
  */
 
 
-#define BLE_UUID_PING_SERVICE 0x0001                      /**< The UUID of the Sana/Nordic UART Service. */
+#define BLE_UUID_PING_SERVICE 0x0001                      /**< The UUID of the Ping/Nordic UART Service. */
 
 #define OPCODE_LENGTH 1
 #define HANDLE_LENGTH 2
@@ -110,7 +110,7 @@ extern "C" {
     #warning NRF_SDH_BLE_GATT_MAX_MTU_SIZE is not defined.
 #endif
 
-/**@brief   Sana/Nordic UART Service event types. */
+/**@brief   Ping/Nordic UART Service event types. */
 typedef enum
 {
     BLE_PING_EVT_RX_DATA,           /**< Data received. */
@@ -124,7 +124,7 @@ typedef enum
 /* Forward declaration of the ble_nus_t type. */
 typedef struct ble_ping_s ble_ping_t;
 
-/**@brief   Sana/Nordic UART Service @ref BLE_SPING_EVT_RX_DATA event data.
+/**@brief   Ping/Nordic UART Service @ref BLE_SPING_EVT_RX_DATA event data.
  *
  * @details This structure is passed to an event when @ref BLE_PING_EVT_RX_DATA occurs.
  */
@@ -134,7 +134,7 @@ typedef struct
     uint16_t        length;           /**< Length of received data. */
 } ble_ping_evt_rx_data_t;
 
-/**@brief   Sana/Nordic UART Service event structure.
+/**@brief   Ping/Nordic UART Service event structure.
  *
  * @details This structure is passed to an event coming from service.
  */
@@ -148,10 +148,10 @@ typedef struct
     } params;
 } ble_ping_evt_t;
 
-/**@brief   Sana/Nordic UART Service event handler type. */
+/**@brief   Ping/Nordic UART Service event handler type. */
 typedef void (*ble_ping_data_handler_t) (ble_ping_evt_t * p_evt);
 
-/**@brief   Sana/Nordic UART Service initialization structure.
+/**@brief   Ping/Nordic UART Service initialization structure.
  *
  * @details This structure contains the initialization information for the service. The application
  * must fill this structure and pass it to the service using the @ref ble_nus_init
@@ -162,7 +162,7 @@ typedef struct
     ble_ping_data_handler_t data_handler; /**< Event handler to be called for handling received data. */
 } ble_ping_init_t;
 
-/**@brief   Sana/Nordic UART Service structure.
+/**@brief   Ping/Nordic UART Service structure.
  *
  * @details This structure contains status information related to the service.
  */
@@ -178,9 +178,9 @@ struct ble_ping_s
 };
 
 
-/**@brief   Function for initializing the Sana/Nordic UART Service.
+/**@brief   Function for initializing the Ping/Nordic UART Service.
  *
- * @param[out] p_ping      Sana/Nordic UART Service structure. This structure must be supplied
+ * @param[out] p_ping      Ping/Nordic UART Service structure. This structure must be supplied
  *                        by the application. It is initialized by this function and will
  *                        later be used to identify this particular service instance.
  * @param[in] p_ping_init  Information needed to initialize the service.
@@ -191,15 +191,15 @@ struct ble_ping_s
 uint32_t ble_ping_init(ble_ping_t * p_ping, ble_ping_init_t const * p_ping_init);
 
 
-/**@brief   Function for handling the Sana/Nordic UART Service's BLE events.
+/**@brief   Function for handling the Ping/Nordic UART Service's BLE events.
  *
- * @details The Sana/Nordic UART Service expects the application to call this function each time an
+ * @details The Ping/Nordic UART Service expects the application to call this function each time an
  * event is received from the SoftDevice. This function processes the event if it
  * is relevant and calls the Nordic UART Service event handler of the
  * application if necessary.
  *
  * @param[in] p_ble_evt     Event received from the SoftDevice.
- * @param[in] p_context     Sana/Nordic UART Service structure.
+ * @param[in] p_context     Ping/Nordic UART Service structure.
  */
 void ble_ping_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context);
 
@@ -209,7 +209,7 @@ void ble_ping_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context);
  * @details This function sends the input string as an RX characteristic notification to the
  *          peer.
  *
- * @param[in] p_ping       Pointer to the Sana/Nordic UART Service structure.
+ * @param[in] p_ping       Pointer to the Ping/Nordic UART Service structure.
  * @param[in] p_string    String to be sent.
  * @param[inout] p_length Pointer Length of the string. Amount of sent bytes.
  *
